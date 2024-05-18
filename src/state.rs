@@ -1,6 +1,8 @@
 use ggez::{Context, GameResult};
 use ggez::event::{EventHandler, KeyCode, KeyMods};
 use ggez::graphics::{self, Color, DrawMode, Rect};
+use ggez::timer;
+use std::time::Duration;
 use rand::Rng;
 
 #[derive(Debug)]
@@ -101,6 +103,7 @@ pub struct MainState {
     pub score: i32,
     pub health: i32,
     pub spawner: Spawner,
+    pub freeze_timer: Option<Duration>,
 }
 
 impl MainState {
@@ -110,8 +113,9 @@ impl MainState {
             pos_x: 350.0,
             pos_y: 250.0,
             score: 0,
-            health: 10,
+            health: 15,
             spawner,
+            freeze_timer: None,
         };
         Ok(s)
     }
@@ -126,10 +130,31 @@ impl MainState {
             self.pos_y += dy / distance;
         }
     }
+
+    fn handle_freeze(&mut self, ctx: &mut Context) {
+        if let Some(start_time) = self.freeze_timer {
+            if timer::time_since_start(ctx) - start_time < Duration::new(3, 0) {
+                // If the freeze time hasn't elapsed, continue freezing
+                return;
+            } else {
+                // Freeze time elapsed, reset health and stop freezing
+                self.health = 15;
+                self.freeze_timer = None;
+            }
+        }
+    }
 }
 
 impl EventHandler for MainState {
-    fn update(&mut self, _ctx: &mut Context) -> GameResult {
+    fn update(&mut self, ctx: &mut Context) -> GameResult {
+        if self.health <= 0 {
+            if self.freeze_timer.is_none() {
+                self.freeze_timer = Some(timer::time_since_start(ctx));
+            }
+            self.handle_freeze(ctx);
+            return Ok(());
+        }
+
         self.spawner.spawn();
         self.spawner.update_enemies();
         let main_rect = Rect::new(self.pos_x, self.pos_y, 50.0, 50.0);
