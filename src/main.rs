@@ -15,6 +15,9 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
+    // Use the window variable, for example, print its size
+    println!("Window created with size: {:?}", window.inner_size());
+
     // Run the event loop
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
