@@ -7,7 +7,7 @@ use state::MainState;
 
 fn main() -> GameResult {
     // Create a context and event loop
-    let (mut ctx, event_loop) = ContextBuilder::new("Squaro", "Author")
+    let (ctx, event_loop) = ContextBuilder::new("Squaro", "Author")
         .window_setup(ggez::conf::WindowSetup::default().title("Squaro!"))
         .window_mode(ggez::conf::WindowMode::default().dimensions(800.0, 600.0))
         .build()?;
