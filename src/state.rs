@@ -103,7 +103,7 @@ pub struct MainState {
     pub score: i32,
     pub health: i32,
     pub spawner: Spawner,
-    pub freeze_timer: Option<Duration>,
+    pub freeze_timer: Option<(Duration, Duration)>, // (start_time, freeze_duration)
 }
 
 impl MainState {
@@ -132,8 +132,8 @@ impl MainState {
     }
 
     fn handle_freeze(&mut self, ctx: &mut Context) {
-        if let Some(start_time) = self.freeze_timer {
-            if timer::time_since_start(ctx) - start_time < Duration::new(3, 0) {
+        if let Some((start_time, freeze_duration)) = self.freeze_timer {
+            if timer::time_since_start(ctx) - start_time < freeze_duration {
                 // If the freeze time hasn't elapsed, continue freezing
                 return;
             } else {
@@ -149,7 +149,9 @@ impl EventHandler for MainState {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
         if self.health <= 0 {
             if self.freeze_timer.is_none() {
-                self.freeze_timer = Some(timer::time_since_start(ctx));
+                let mut rng = rand::thread_rng();
+                let freeze_duration = Duration::from_secs_f32(rng.gen_range(1.3..1.69));
+                self.freeze_timer = Some((timer::time_since_start(ctx), freeze_duration));
             }
             self.handle_freeze(ctx);
             return Ok(());
