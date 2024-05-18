@@ -1,5 +1,4 @@
 mod state;
-mod text;
 
 use ggez::{ContextBuilder, GameResult};
 use ggez::event;

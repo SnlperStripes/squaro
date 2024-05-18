@@ -203,12 +203,6 @@ impl EventHandler for MainState {
             graphics::draw(ctx, &mesh, graphics::DrawParam::default())?;
         }
 
-        // Draw the score at the top right
-        crate::text::draw_text(ctx, &format!("Score: {}", self.score), [700.0, 10.0])?;
-
-        // Draw the health at the top left
-        crate::text::draw_text(ctx, &format!("Health: {}", self.health), [10.0, 10.0])?;
-
         // Present the drawing
         graphics::present(ctx)?;
         Ok(())
