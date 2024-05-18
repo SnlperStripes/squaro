@@ -14,11 +14,29 @@ pub struct Enemy {
     pub x: f32,
     pub y: f32,
     pub shape: Shape,
+    pub dx: f32,
+    pub dy: f32,
 }
 
 impl Enemy {
     pub fn new(x: f32, y: f32, shape: Shape) -> Self {
-        Enemy { x, y, shape }
+        let mut rng = rand::thread_rng();
+        let dx = rng.gen_range(-2.0..2.0);
+        let dy = rng.gen_range(-2.0..2.0);
+        Enemy { x, y, shape, dx, dy }
+    }
+
+    pub fn update(&mut self) {
+        self.x += self.dx;
+        self.y += self.dy;
+
+        // Bounce off walls
+        if self.x <= 0.0 || self.x >= 750.0 {
+            self.dx = -self.dx;
+        }
+        if self.y <= 0.0 || self.y >= 550.0 {
+            self.dy = -self.dy;
+        }
     }
 }
 
@@ -47,11 +65,18 @@ impl Spawner {
         }
     }
 
-    pub fn check_collisions(&mut self, main_rect: &Rect, score: &mut i32) {
+    pub fn update_enemies(&mut self) {
+        for enemy in &mut self.enemies {
+            enemy.update();
+        }
+    }
+
+    pub fn check_collisions(&mut self, main_rect: &Rect, score: &mut i32, health: &mut i32) {
         self.enemies.retain(|enemy| {
             let enemy_rect = Rect::new(enemy.x, enemy.y, 50.0, 50.0);
             if main_rect.overlaps(&enemy_rect) {
                 *score += 1;
+                *health -= 1;
                 false // Remove the enemy
             } else {
                 true // Keep the enemy
@@ -74,6 +99,7 @@ pub struct MainState {
     pub pos_x: f32,
     pub pos_y: f32,
     pub score: i32,
+    pub health: i32,
     pub spawner: Spawner,
 }
 
@@ -84,6 +110,7 @@ impl MainState {
             pos_x: 350.0,
             pos_y: 250.0,
             score: 0,
+            health: 10,
             spawner,
         };
         Ok(s)
@@ -104,8 +131,9 @@ impl MainState {
 impl EventHandler for MainState {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
         self.spawner.spawn();
+        self.spawner.update_enemies();
         let main_rect = Rect::new(self.pos_x, self.pos_y, 50.0, 50.0);
-        self.spawner.check_collisions(&main_rect, &mut self.score);
+        self.spawner.check_collisions(&main_rect, &mut self.score, &mut self.health);
 
         if let Some(enemy) = self.spawner.get_closest_enemy(self.pos_x, self.pos_y) {
             self.move_towards(enemy.x, enemy.y);
@@ -148,8 +176,11 @@ impl EventHandler for MainState {
             graphics::draw(ctx, &mesh, graphics::DrawParam::default())?;
         }
 
-        // Draw the score
-        crate::text::draw_text(ctx, &format!("Score: {}", self.score))?;
+        // Draw the score at the top right
+        crate::text::draw_text(ctx, &format!("Score: {}", self.score), [700.0, 10.0])?;
+
+        // Draw the health at the top left
+        crate::text::draw_text(ctx, &format!("Health: {}", self.health), [10.0, 10.0])?;
 
         // Present the drawing
         graphics::present(ctx)?;
