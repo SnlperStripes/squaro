@@ -58,6 +58,16 @@ impl Spawner {
             }
         });
     }
+
+    pub fn get_closest_enemy(&self, x: f32, y: f32) -> Option<&Enemy> {
+        self.enemies
+            .iter()
+            .min_by(|a, b| {
+                let dist_a = (a.x - x).powi(2) + (a.y - y).powi(2);
+                let dist_b = (b.x - x).powi(2) + (b.y - y).powi(2);
+                dist_a.partial_cmp(&dist_b).unwrap()
+            })
+    }
 }
 
 pub struct MainState {
@@ -78,6 +88,17 @@ impl MainState {
         };
         Ok(s)
     }
+
+    fn move_towards(&mut self, target_x: f32, target_y: f32) {
+        let dx = target_x - self.pos_x;
+        let dy = target_y - self.pos_y;
+        let distance = (dx * dx + dy * dy).sqrt();
+
+        if distance > 1.0 {
+            self.pos_x += dx / distance;
+            self.pos_y += dy / distance;
+        }
+    }
 }
 
 impl EventHandler for MainState {
@@ -85,6 +106,11 @@ impl EventHandler for MainState {
         self.spawner.spawn();
         let main_rect = Rect::new(self.pos_x, self.pos_y, 50.0, 50.0);
         self.spawner.check_collisions(&main_rect, &mut self.score);
+
+        if let Some(enemy) = self.spawner.get_closest_enemy(self.pos_x, self.pos_y) {
+            self.move_towards(enemy.x, enemy.y);
+        }
+
         Ok(())
     }
 
