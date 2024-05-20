@@ -104,6 +104,7 @@ pub struct MainState {
     pub health: i32,
     pub spawner: Spawner,
     pub freeze_timer: Option<(Duration, Duration)>, // (start_time, freeze_duration)
+    pub paused: bool,
 }
 
 impl MainState {
@@ -116,6 +117,7 @@ impl MainState {
             health: 15,
             spawner,
             freeze_timer: None,
+            paused: false,
         };
         Ok(s)
     }
@@ -147,6 +149,10 @@ impl MainState {
 
 impl EventHandler for MainState {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
+        if self.paused {
+            return Ok(());
+        }
+
         if self.health <= 0 {
             if self.freeze_timer.is_none() {
                 let mut rng = rand::thread_rng();
@@ -175,6 +181,7 @@ impl EventHandler for MainState {
             KeyCode::A => self.pos_x -= 5.0,
             KeyCode::S => self.pos_y += 5.0,
             KeyCode::D => self.pos_x += 5.0,
+            KeyCode::P => self.paused = !self.paused, // Toggle the paused state
             _ => (),
         }
     }
@@ -208,6 +215,11 @@ impl EventHandler for MainState {
 
         // Draw the health at the top left
         crate::text::draw_text(ctx, &format!("Health: {}", self.health), [10.0, 10.0])?;
+
+        // If the game is paused, draw the "Paused" text
+        if self.paused {
+            crate::text::draw_text(ctx, "Paused", [350.0, 300.0])?;
+        }
 
         // Present the drawing
         graphics::present(ctx)?;
