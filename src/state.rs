@@ -1,9 +1,14 @@
+// Import the Projectile struct from the projectile module
+use crate::projectile::Projectile;
 use ggez::{Context, GameResult};
 use ggez::event::{EventHandler, KeyCode, KeyMods};
 use ggez::graphics::{self, Color, DrawMode, Rect};
 use ggez::timer;
-use std::time::Duration;
 use rand::Rng;
+use std::time::Duration;
+
+// The rest of your code...
+
 
 #[derive(Debug)]
 pub enum Shape {
@@ -96,7 +101,6 @@ impl Spawner {
     }
 }
 
-
 pub struct MainState {
     pub pos_x: f32,
     pub pos_y: f32,
@@ -105,6 +109,7 @@ pub struct MainState {
     pub spawner: Spawner,
     pub freeze_timer: Option<(Duration, Duration)>, // (start_time, freeze_duration)
     pub paused: bool,
+    pub projectiles: Vec<Projectile>,
 }
 
 impl MainState {
@@ -118,6 +123,7 @@ impl MainState {
             spawner,
             freeze_timer: None,
             paused: false,
+            projectiles: Vec::new(),
         };
         Ok(s)
     }
@@ -145,6 +151,31 @@ impl MainState {
             }
         }
     }
+    
+    fn update_projectiles(&mut self) {
+        for projectile in &mut self.projectiles {
+            projectile.update();
+        }
+
+        self.projectiles.retain(|projectile| {
+            projectile.x >= 0.0 && projectile.x <= 800.0 && projectile.y >= 0.0 && projectile.y <= 600.0
+        });
+    }
+
+    fn check_projectile_collisions(&mut self) {
+        for projectile in &self.projectiles {
+            self.spawner.enemies.retain(|enemy| {
+                let enemy_rect = Rect::new(enemy.x, enemy.y, 50.0, 50.0);
+                let projectile_rect = Rect::new(projectile.x, projectile.y, 5.0, 5.0);
+                if projectile_rect.overlaps(&enemy_rect) {
+                    self.score += 1;
+                    false // Remove the enemy
+                } else {
+                    true // Keep the enemy
+                }
+            });
+        }
+    }
 }
 
 impl EventHandler for MainState {
@@ -165,8 +196,10 @@ impl EventHandler for MainState {
 
         self.spawner.spawn();
         self.spawner.update_enemies();
+        self.update_projectiles();
         let main_rect = Rect::new(self.pos_x, self.pos_y, 50.0, 50.0);
         self.spawner.check_collisions(&main_rect, &mut self.score);
+        self.check_projectile_collisions();
 
         if let Some(enemy) = self.spawner.get_closest_enemy(self.pos_x, self.pos_y) {
             self.move_towards(enemy.x, enemy.y);
@@ -183,6 +216,13 @@ impl EventHandler for MainState {
             KeyCode::D => self.pos_x += 5.0,
             KeyCode::P => self.paused = !self.paused, // Toggle the paused state
             _ => (),
+        }
+    }
+
+    fn mouse_button_down_event(&mut self, _ctx: &mut Context, button: ggez::input::mouse::MouseButton, x: f32, y: f32) {
+        if button == ggez::input::mouse::MouseButton::Left {
+            let projectile = Projectile::new(self.pos_x + 25.0, self.pos_y + 25.0, x, y);
+            self.projectiles.push(projectile);
         }
     }
 
@@ -210,6 +250,13 @@ impl EventHandler for MainState {
             graphics::draw(ctx, &mesh, graphics::DrawParam::default())?;
         }
 
+        // Create and draw the projectiles
+        for projectile in &self.projectiles {
+            let rect = Rect::new(projectile.x, projectile.y, 5.0, 5.0);
+            let mesh = graphics::Mesh::new_rectangle(ctx, DrawMode::fill(), rect, Color::from_rgb(255, 255, 255))?;
+            graphics::draw(ctx, &mesh, graphics::DrawParam::default())?;
+        }
+
         // Draw the score at the top right
         crate::text::draw_text(ctx, &format!("Score: {}", self.score), [700.0, 10.0])?;
 
@@ -226,4 +273,3 @@ impl EventHandler for MainState {
         Ok(())
     }
 }
-    

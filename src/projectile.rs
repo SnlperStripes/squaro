@@ -1,5 +1,3 @@
-use ggez::graphics::Rect;
-
 #[derive(Debug)]
 pub struct Projectile {
     pub x: f32,

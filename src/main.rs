@@ -1,5 +1,6 @@
 mod state;
 mod text;
+mod projectile;
 
 use ggez::{ContextBuilder, GameResult};
 use ggez::event;
