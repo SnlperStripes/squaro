@@ -73,12 +73,11 @@ impl Spawner {
         }
     }
 
-    pub fn check_collisions(&mut self, main_rect: &Rect, score: &mut i32, health: &mut i32) {
+    pub fn check_collisions(&mut self, main_rect: &Rect, score: &mut i32) {
         self.enemies.retain(|enemy| {
             let enemy_rect = Rect::new(enemy.x, enemy.y, 50.0, 50.0);
             if main_rect.overlaps(&enemy_rect) {
                 *score += 1;
-                *health -= 1;
                 false // Remove the enemy
             } else {
                 true // Keep the enemy
@@ -96,6 +95,7 @@ impl Spawner {
             })
     }
 }
+
 
 pub struct MainState {
     pub pos_x: f32,
@@ -166,7 +166,7 @@ impl EventHandler for MainState {
         self.spawner.spawn();
         self.spawner.update_enemies();
         let main_rect = Rect::new(self.pos_x, self.pos_y, 50.0, 50.0);
-        self.spawner.check_collisions(&main_rect, &mut self.score, &mut self.health);
+        self.spawner.check_collisions(&main_rect, &mut self.score);
 
         if let Some(enemy) = self.spawner.get_closest_enemy(self.pos_x, self.pos_y) {
             self.move_towards(enemy.x, enemy.y);
@@ -226,3 +226,4 @@ impl EventHandler for MainState {
         Ok(())
     }
 }
+    
