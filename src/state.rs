@@ -1,4 +1,3 @@
-// Import the Projectile struct from the projectile module
 use crate::projectile::Projectile;
 use ggez::{Context, GameResult};
 use ggez::event::{EventHandler, KeyCode, KeyMods};
@@ -7,13 +6,18 @@ use ggez::timer;
 use rand::Rng;
 use std::time::Duration;
 
-// The rest of your code...
-
-
 #[derive(Debug)]
 pub enum Shape {
     Square,
     Circle,
+    Triangle,
+}
+
+#[derive(Debug)]
+pub enum EnemyType {
+    Chaser,
+    Random,
+    Avoider,
 }
 
 #[derive(Debug)]
@@ -21,28 +25,66 @@ pub struct Enemy {
     pub x: f32,
     pub y: f32,
     pub shape: Shape,
+    pub enemy_type: EnemyType,
     pub dx: f32,
     pub dy: f32,
 }
 
 impl Enemy {
     pub fn new(x: f32, y: f32, shape: Shape) -> Self {
+        let enemy_type = match shape {
+            Shape::Square => EnemyType::Chaser,
+            Shape::Circle => EnemyType::Random,
+            Shape::Triangle => EnemyType::Avoider,
+        };
         let mut rng = rand::thread_rng();
         let dx = rng.gen_range(-2.0..2.0);
         let dy = rng.gen_range(-2.0..2.0);
-        Enemy { x, y, shape, dx, dy }
+        Enemy { x, y, shape, enemy_type, dx, dy }
     }
 
-    pub fn update(&mut self) {
-        self.x += self.dx;
-        self.y += self.dy;
-
-        // Bounce off walls
-        if self.x <= 0.0 || self.x >= 750.0 {
-            self.dx = -self.dx;
+    pub fn update(&mut self, player_x: f32, player_y: f32) {
+        match self.enemy_type {
+            EnemyType::Chaser => {
+                let dx = player_x - self.x;
+                let dy = player_y - self.y;
+                let distance = (dx * dx + dy * dy).sqrt();
+                if distance > 0.0 {
+                    self.x += dx / distance;
+                    self.y += dy / distance;
+                }
+            }
+            EnemyType::Random => {
+                self.x += self.dx;
+                self.y += self.dy;
+                if self.x <= 0.0 || self.x >= 750.0 {
+                    self.dx = -self.dx;
+                }
+                if self.y <= 0.0 || self.y >= 550.0 {
+                    self.dy = -self.dy;
+                }
+            }
+            EnemyType::Avoider => {
+                let dx = self.x - player_x;
+                let dy = self.y - player_y;
+                let distance = (dx * dx + dy * dy).sqrt();
+                if distance < 100.0 {
+                    self.x += dx / distance;
+                    self.y += dy / distance;
+                }
+            }
         }
-        if self.y <= 0.0 || self.y >= 550.0 {
-            self.dy = -self.dy;
+
+        // Ensure the enemy stays within the window boundaries
+        if self.x < 0.0 {
+            self.x = 0.0;
+        } else if self.x > 750.0 {
+            self.x = 750.0;
+        }
+        if self.y < 0.0 {
+            self.y = 0.0;
+        } else if self.y > 550.0 {
+            self.y = 550.0;
         }
     }
 }
@@ -63,25 +105,30 @@ impl Spawner {
         while self.enemies.len() < 5 {
             let x = rng.gen_range(0.0..750.0);
             let y = rng.gen_range(0.0..550.0);
-            let shape = if rng.gen_bool(0.5) {
-                Shape::Square
-            } else {
-                Shape::Circle
+            let shape = match rng.gen_range(0..3) {
+                0 => Shape::Square,
+                1 => Shape::Circle,
+                _ => Shape::Triangle,
             };
             self.enemies.push(Enemy::new(x, y, shape));
         }
     }
 
-    pub fn update_enemies(&mut self) {
+    pub fn update_enemies(&mut self, player_x: f32, player_y: f32) {
         for enemy in &mut self.enemies {
-            enemy.update();
+            enemy.update(player_x, player_y);
         }
     }
 
-    pub fn check_collisions(&mut self, main_rect: &Rect, score: &mut i32) {
+    pub fn check_collisions(&mut self, main_rect: &Rect, score: &mut i32, health: &mut i32) {
         self.enemies.retain(|enemy| {
             let enemy_rect = Rect::new(enemy.x, enemy.y, 50.0, 50.0);
             if main_rect.overlaps(&enemy_rect) {
+                match enemy.enemy_type {
+                    EnemyType::Chaser => *health -= 2,
+                    EnemyType::Random => *health -= 1,
+                    EnemyType::Avoider => *health = 9,
+                }
                 *score += 1;
                 false // Remove the enemy
             } else {
@@ -137,6 +184,18 @@ impl MainState {
             self.pos_x += dx / distance;
             self.pos_y += dy / distance;
         }
+
+        // Ensure the player stays within the window boundaries
+        if self.pos_x < 0.0 {
+            self.pos_x = 0.0;
+        } else if self.pos_x > 750.0 {
+            self.pos_x = 750.0;
+        }
+        if self.pos_y < 0.0 {
+            self.pos_y = 0.0;
+        } else if self.pos_y > 550.0 {
+            self.pos_y = 550.0;
+        }
     }
 
     fn handle_freeze(&mut self, ctx: &mut Context) {
@@ -151,7 +210,7 @@ impl MainState {
             }
         }
     }
-    
+
     fn update_projectiles(&mut self) {
         for projectile in &mut self.projectiles {
             projectile.update();
@@ -195,10 +254,10 @@ impl EventHandler for MainState {
         }
 
         self.spawner.spawn();
-        self.spawner.update_enemies();
+        self.spawner.update_enemies(self.pos_x, self.pos_y);  // Pass player position
         self.update_projectiles();
         let main_rect = Rect::new(self.pos_x, self.pos_y, 50.0, 50.0);
-        self.spawner.check_collisions(&main_rect, &mut self.score);
+        self.spawner.check_collisions(&main_rect, &mut self.score, &mut self.health); // Pass health
         self.check_projectile_collisions();
 
         if let Some(enemy) = self.spawner.get_closest_enemy(self.pos_x, self.pos_y) {
@@ -210,10 +269,10 @@ impl EventHandler for MainState {
 
     fn key_down_event(&mut self, _ctx: &mut Context, keycode: KeyCode, _keymods: KeyMods, _repeat: bool) {
         match keycode {
-            KeyCode::W => self.pos_y -= 5.0,
-            KeyCode::A => self.pos_x -= 5.0,
-            KeyCode::S => self.pos_y += 5.0,
-            KeyCode::D => self.pos_x += 5.0,
+            KeyCode::W => self.pos_y = (self.pos_y - 5.0).max(0.0),
+            KeyCode::A => self.pos_x = (self.pos_x - 5.0).max(0.0),
+            KeyCode::S => self.pos_y = (self.pos_y + 5.0).min(550.0),
+            KeyCode::D => self.pos_x = (self.pos_x + 5.0).min(750.0),
             KeyCode::P => self.paused = !self.paused, // Toggle the paused state
             _ => (),
         }
@@ -245,6 +304,15 @@ impl EventHandler for MainState {
                 }
                 Shape::Circle => {
                     graphics::Mesh::new_circle(ctx, DrawMode::fill(), [enemy.x + 25.0, enemy.y + 25.0], 25.0, 0.1, Color::from_rgb(0, 255, 0))?
+                }
+                Shape::Triangle => {
+                    // Draw a triangle
+                    let points = [
+                        [enemy.x + 25.0, enemy.y], // Top point
+                        [enemy.x, enemy.y + 50.0], // Bottom left point
+                        [enemy.x + 50.0, enemy.y + 50.0], // Bottom right point
+                    ];
+                    graphics::Mesh::new_polygon(ctx, DrawMode::fill(), &points, Color::from_rgb(255, 255, 0))?
                 }
             };
             graphics::draw(ctx, &mesh, graphics::DrawParam::default())?;
