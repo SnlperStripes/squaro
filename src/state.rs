@@ -120,15 +120,10 @@ impl Spawner {
         }
     }
 
-    pub fn check_collisions(&mut self, main_rect: &Rect, score: &mut i32, health: &mut i32) {
+    pub fn check_collisions(&mut self, main_rect: &Rect, score: &mut i32) {
         self.enemies.retain(|enemy| {
             let enemy_rect = Rect::new(enemy.x, enemy.y, 50.0, 50.0);
             if main_rect.overlaps(&enemy_rect) {
-                match enemy.enemy_type {
-                    EnemyType::Chaser => *health -= 2,
-                    EnemyType::Random => *health -= 1,
-                    EnemyType::Avoider => *health = 9,
-                }
                 *score += 1;
                 false // Remove the enemy
             } else {
@@ -152,7 +147,6 @@ pub struct MainState {
     pub pos_x: f32,
     pub pos_y: f32,
     pub score: i32,
-    pub health: i32,
     pub spawner: Spawner,
     pub freeze_timer: Option<(Duration, Duration)>, // (start_time, freeze_duration)
     pub paused: bool,
@@ -166,7 +160,6 @@ impl MainState {
             pos_x: 350.0,
             pos_y: 250.0,
             score: 0,
-            health: 15,
             spawner,
             freeze_timer: None,
             paused: false,
@@ -204,8 +197,7 @@ impl MainState {
                 // If the freeze time hasn't elapsed, continue freezing
                 return;
             } else {
-                // Freeze time elapsed, reset health and stop freezing
-                self.health = 15;
+                // Freeze time elapsed, reset freeze timer
                 self.freeze_timer = None;
             }
         }
@@ -243,22 +235,12 @@ impl EventHandler for MainState {
             return Ok(());
         }
 
-        if self.health <= 0 {
-            if self.freeze_timer.is_none() {
-                let mut rng = rand::thread_rng();
-                let freeze_duration = Duration::from_secs_f32(rng.gen_range(1.3..1.69));
-                self.freeze_timer = Some((timer::time_since_start(ctx), freeze_duration));
-            }
-            self.handle_freeze(ctx);
-            return Ok(());
-        }
-
         self.spawner.spawn();
         self.spawner.update_enemies(self.pos_x, self.pos_y);  // Pass player position
         self.update_projectiles();
         let main_rect = Rect::new(self.pos_x, self.pos_y, 50.0, 50.0);
-        self.spawner.check_collisions(&main_rect, &mut self.score, &mut self.health); // Pass health
-        self.check_projectile_collisions();
+        self.spawner.check_collisions(&main_rect, &mut self.score); // Check collisions with enemies
+        self.check_projectile_collisions(); // Check collisions with projectiles
 
         if let Some(enemy) = self.spawner.get_closest_enemy(self.pos_x, self.pos_y) {
             self.move_towards(enemy.x, enemy.y);
@@ -327,9 +309,6 @@ impl EventHandler for MainState {
 
         // Draw the score at the top right
         crate::text::draw_text(ctx, &format!("Score: {}", self.score), [700.0, 10.0])?;
-
-        // Draw the health at the top left
-        crate::text::draw_text(ctx, &format!("Health: {}", self.health), [10.0, 10.0])?;
 
         // If the game is paused, draw the "Paused" text
         if self.paused {
