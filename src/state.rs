@@ -2,9 +2,7 @@ use crate::projectile::Projectile;
 use ggez::{Context, GameResult};
 use ggez::event::{EventHandler, KeyCode, KeyMods};
 use ggez::graphics::{self, Color, DrawMode, Rect};
-use ggez::timer;
 use rand::Rng;
-use std::time::Duration;
 
 #[derive(Debug)]
 pub enum Shape {
@@ -148,7 +146,6 @@ pub struct MainState {
     pub pos_y: f32,
     pub score: i32,
     pub spawner: Spawner,
-    pub freeze_timer: Option<(Duration, Duration)>, // (start_time, freeze_duration)
     pub paused: bool,
     pub projectiles: Vec<Projectile>,
 }
@@ -161,7 +158,6 @@ impl MainState {
             pos_y: 250.0,
             score: 0,
             spawner,
-            freeze_timer: None,
             paused: false,
             projectiles: Vec::new(),
         };
@@ -188,18 +184,6 @@ impl MainState {
             self.pos_y = 0.0;
         } else if self.pos_y > 550.0 {
             self.pos_y = 550.0;
-        }
-    }
-
-    fn handle_freeze(&mut self, ctx: &mut Context) {
-        if let Some((start_time, freeze_duration)) = self.freeze_timer {
-            if timer::time_since_start(ctx) - start_time < freeze_duration {
-                // If the freeze time hasn't elapsed, continue freezing
-                return;
-            } else {
-                // Freeze time elapsed, reset freeze timer
-                self.freeze_timer = None;
-            }
         }
     }
 
@@ -230,7 +214,7 @@ impl MainState {
 }
 
 impl EventHandler for MainState {
-    fn update(&mut self, ctx: &mut Context) -> GameResult {
+    fn update(&mut self, _ctx: &mut Context) -> GameResult {
         if self.paused {
             return Ok(());
         }
