@@ -126,14 +126,4 @@ impl Spawner {
             }
         });
     }
-
-    pub fn get_closest_enemy(&self, x: f32, y: f32) -> Option<&Enemy> {
-        self.enemies
-            .iter()
-            .min_by(|a, b| {
-                let dist_a = (a.x - x).powi(2) + (a.y - y).powi(2);
-                let dist_b = (b.x - x).powi(2) + (b.y - y).powi(2);
-                dist_a.partial_cmp(&dist_b).unwrap()
-            })
-    }
 }
