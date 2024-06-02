@@ -1,3 +1,4 @@
+mod enemy;
 mod state;
 mod text;
 mod projectile;
