@@ -1,9 +1,12 @@
 use crate::enemy::{Spawner, Shape};
 use crate::projectile::Projectile;
+use crate::comm::{Comm, GameState, EnemyState};  // Import the communication module
 use ggez::{Context, GameResult};
 use ggez::event::{EventHandler, KeyCode, KeyMods};
 use ggez::graphics::{self, Color, DrawMode, Rect};
 use ggez::input::mouse::MouseButton;
+use std::sync::Arc;
+use tokio::runtime::Runtime;
 
 pub struct MainState {
     pub pos_x: f32,
@@ -12,10 +15,12 @@ pub struct MainState {
     pub spawner: Spawner,
     pub paused: bool,
     pub projectiles: Vec<Projectile>,
+    pub comm: Comm,  // Add the communication field
+    pub rt: Arc<Runtime>,  // Add the runtime field
 }
 
 impl MainState {
-    pub fn new() -> GameResult<MainState> {
+    pub fn new(comm: Comm, rt: Arc<Runtime>) -> GameResult<MainState> {
         let spawner = Spawner::new();
         let s = MainState {
             pos_x: 350.0,
@@ -24,10 +29,11 @@ impl MainState {
             spawner,
             paused: false,
             projectiles: Vec::new(),
+            comm,
+            rt,
         };
         Ok(s)
     }
-
 
     fn update_projectiles(&mut self) {
         for projectile in &mut self.projectiles {
@@ -53,6 +59,27 @@ impl MainState {
             });
         }
     }
+
+    async fn send_state(&self) {
+        let enemies_state: Vec<EnemyState> = self.spawner.enemies.iter().map(|e| EnemyState {
+            x: e.x,
+            y: e.y,
+            shape: format!("{:?}", e.shape),
+            enemy_type: format!("{:?}", e.enemy_type),
+        }).collect();
+
+        let state = GameState {
+            player_x: self.pos_x,
+            player_y: self.pos_y,
+            enemies: enemies_state,
+        };
+
+        self.comm.send_state(&state).await;
+    }
+
+    async fn receive_action(&self) -> Option<String> {
+        self.comm.receive_action().await
+    }
 }
 
 impl EventHandler for MainState {
@@ -67,6 +94,22 @@ impl EventHandler for MainState {
         let main_rect = Rect::new(self.pos_x, self.pos_y, 50.0, 50.0);
         self.spawner.check_collisions(&main_rect, &mut self.score); // Check collisions with enemies
         self.check_projectile_collisions(); // Check collisions with projectiles
+
+        let rt = self.rt.clone();
+
+        rt.block_on(async {
+            self.send_state().await;
+
+            if let Some(action) = self.receive_action().await {
+                match action.as_str() {
+                    "up" => self.pos_y = (self.pos_y - 5.0).max(0.0),
+                    "down" => self.pos_y = (self.pos_y + 5.0).min(550.0),
+                    "left" => self.pos_x = (self.pos_x - 5.0).max(0.0),
+                    "right" => self.pos_x = (self.pos_x + 5.0).min(750.0),
+                    _ => (),
+                }
+            }
+        });
 
         Ok(())
     }
