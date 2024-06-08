@@ -1,5 +1,7 @@
 use crate::enemy::{Spawner, Shape};
 use crate::projectile::Projectile;
+use crate::rl_interface::RLInterface;
+use cpython::Python;
 use ggez::{Context, GameResult};
 use ggez::event::{EventHandler, KeyCode, KeyMods};
 use ggez::graphics::{self, Color, DrawMode, Rect};
@@ -12,10 +14,11 @@ pub struct MainState {
     pub spawner: Spawner,
     pub paused: bool,
     pub projectiles: Vec<Projectile>,
+    pub rl_interface: RLInterface,
 }
 
 impl MainState {
-    pub fn new() -> GameResult<MainState> {
+    pub fn new(rl_interface: RLInterface) -> GameResult<MainState> {
         let spawner = Spawner::new();
         let s = MainState {
             pos_x: 350.0,
@@ -24,10 +27,10 @@ impl MainState {
             spawner,
             paused: false,
             projectiles: Vec::new(),
+            rl_interface,
         };
         Ok(s)
     }
-
 
     fn update_projectiles(&mut self) {
         for projectile in &mut self.projectiles {
@@ -67,6 +70,20 @@ impl EventHandler for MainState {
         let main_rect = Rect::new(self.pos_x, self.pos_y, 50.0, 50.0);
         self.spawner.check_collisions(&main_rect, &mut self.score); // Check collisions with enemies
         self.check_projectile_collisions(); // Check collisions with projectiles
+
+        let gil = Python::acquire_gil();
+        let py = gil.python();
+        let state = format!("{{\"player_x\": {}, \"player_y\": {}, \"score\": {}}}", self.pos_x, self.pos_y, self.score);
+        match self.rl_interface.compute_action(py, &state) {
+            Ok(action) => match action.as_str() {
+                "up" => self.pos_y = (self.pos_y - 5.0).max(0.0),
+                "down" => self.pos_y = (self.pos_y + 5.0).min(550.0),
+                "left" => self.pos_x = (self.pos_x - 5.0).max(0.0),
+                "right" => self.pos_x = (self.pos_x + 5.0).min(750.0),
+                _ => (),
+            },
+            Err(e) => println!("Python error: {:?}", e),
+        }
 
         Ok(())
     }
