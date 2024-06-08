@@ -41,3 +41,5 @@ Thumbs.db
 # Ignore Rustfmt and Clippy files
 rustfmt.toml
 clippy.toml
+
+q_table.json

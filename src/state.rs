@@ -146,10 +146,8 @@ impl EventHandler for MainState {
             println!("Failed to decay epsilon: {:?}", e);
         }
 
-        // Log the score at regular intervals
-        if self.score % 10 == 0 {
-            println!("Current score: {}", self.score);
-        }
+        // Log the score at every update
+        println!("Current score: {}", self.score);
 
         Ok(())
     }
