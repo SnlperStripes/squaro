@@ -63,8 +63,15 @@ impl MainState {
     }
 
     pub fn get_state(&self) -> String {
-        // Return the current state as a string, including enemy positions
-        let enemy_positions: Vec<String> = self.spawner.enemies.iter().map(|e| format!("({}, {})", e.x, e.y)).collect();
+        // Return the current state as a string, including enemy positions and types
+        let enemy_positions: Vec<String> = self.spawner.enemies.iter().map(|e| {
+            let enemy_type = match e.shape {
+                Shape::Square => "square",
+                Shape::Circle => "circle",
+                Shape::Triangle => "triangle",
+            };
+            format!("{{\"x\": {}, \"y\": {}, \"type\": \"{}\"}}", e.x, e.y, enemy_type)
+        }).collect();
         let enemy_positions_str = enemy_positions.join(", ");
         format!("{{\"player_x\": {}, \"player_y\": {}, \"score\": {}, \"enemies\": [{}]}}", self.pos_x, self.pos_y, self.score, enemy_positions_str)
     }
