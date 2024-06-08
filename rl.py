@@ -9,7 +9,7 @@ DISCOUNT_FACTOR = 0.95
 EPSILON = 0.1  # Initial exploration factor
 MIN_EPSILON = 0.01
 EPSILON_DECAY = 0.995
-ACTION_PERSISTENCE = 5  # Number of steps to persist with the same action
+ACTION_PERSISTENCE = 10  # Number of steps to persist with the same action (increased for smoother movements)
 
 # Load Q-Table if it exists, or initialize a new one if it fails
 q_table_file = 'q_table.json'
@@ -23,6 +23,8 @@ except json.JSONDecodeError:
 
 current_action = None
 action_counter = 0
+
+ACTIONS = ['up', 'down', 'left', 'right', 'up-left', 'up-right', 'down-left', 'down-right']
 
 def get_state_action_value(state, action):
     return Q_TABLE.get(state, {}).get(action, 0.0)
@@ -39,11 +41,11 @@ def choose_action(state):
         return current_action
 
     if random.uniform(0, 1) < EPSILON:
-        action = random.choice(['up', 'down', 'left', 'right'])
+        action = random.choice(ACTIONS)
     else:
-        q_values = [get_state_action_value(state, a) for a in ['up', 'down', 'left', 'right']]
+        q_values = [get_state_action_value(state, a) for a in ACTIONS]
         max_q_value = max(q_values)
-        actions_with_max_q_value = [a for a, q in zip(['up', 'down', 'left', 'right'], q_values) if q == max_q_value]
+        actions_with_max_q_value = [a for a, q in zip(ACTIONS, q_values) if q == max_q_value]
         action = random.choice(actions_with_max_q_value)
     
     current_action = action
@@ -52,7 +54,7 @@ def choose_action(state):
 
 def update_q_table(state, action, reward, next_state):
     current_q = get_state_action_value(state, action)
-    max_next_q = max([get_state_action_value(next_state, a) for a in ['up', 'down', 'left', 'right']])
+    max_next_q = max([get_state_action_value(next_state, a) for a in ACTIONS])
     new_q = current_q + LEARNING_RATE * (reward + DISCOUNT_FACTOR * max_next_q - current_q)
     set_state_action_value(state, action, new_q)
     # Save Q-Table

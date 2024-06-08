@@ -84,6 +84,22 @@ impl MainState {
             "down" => self.pos_y = (self.pos_y + 5.0).min(550.0),
             "left" => self.pos_x = (self.pos_x - 5.0).max(0.0),
             "right" => self.pos_x = (self.pos_x + 5.0).min(750.0),
+            "up-left" => {
+                self.pos_y = (self.pos_y - 5.0).max(0.0);
+                self.pos_x = (self.pos_x - 5.0).max(0.0);
+            },
+            "up-right" => {
+                self.pos_y = (self.pos_y - 5.0).max(0.0);
+                self.pos_x = (self.pos_x + 5.0).min(750.0);
+            },
+            "down-left" => {
+                self.pos_y = (self.pos_y + 5.0).min(550.0);
+                self.pos_x = (self.pos_x - 5.0).max(0.0);
+            },
+            "down-right" => {
+                self.pos_y = (self.pos_y + 5.0).min(550.0);
+                self.pos_x = (self.pos_x + 5.0).min(750.0);
+            },
             _ => (),
         }
     }
@@ -128,6 +144,11 @@ impl EventHandler for MainState {
         // Decay epsilon
         if let Err(e) = self.rl_interface.decay_epsilon(py) {
             println!("Failed to decay epsilon: {:?}", e);
+        }
+
+        // Log the score at regular intervals
+        if self.score % 10 == 0 {
+            println!("Current score: {}", self.score);
         }
 
         Ok(())
