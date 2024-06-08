@@ -63,14 +63,16 @@ impl MainState {
     }
 
     pub fn get_state(&self) -> String {
-        // Return the current state as a string, including enemy positions and types
+        // Return the current state as a string, including relative enemy positions and types
         let enemy_positions: Vec<String> = self.spawner.enemies.iter().map(|e| {
             let enemy_type = match e.shape {
                 Shape::Square => "square",
                 Shape::Circle => "circle",
                 Shape::Triangle => "triangle",
             };
-            format!("{{\"x\": {}, \"y\": {}, \"type\": \"{}\"}}", e.x, e.y, enemy_type)
+            let relative_x = e.x - self.pos_x;
+            let relative_y = e.y - self.pos_y;
+            format!("{{\"x\": {}, \"y\": {}, \"type\": \"{}\"}}", relative_x, relative_y, enemy_type)
         }).collect();
         let enemy_positions_str = enemy_positions.join(", ");
         format!("{{\"player_x\": {}, \"player_y\": {}, \"score\": {}, \"enemies\": [{}]}}", self.pos_x, self.pos_y, self.score, enemy_positions_str)
@@ -122,6 +124,11 @@ impl EventHandler for MainState {
         let next_state = self.get_state();
         let reward = self.get_reward();
         self.rl_interface.learn(py, &state, &action, reward, &next_state).expect("Failed to learn");
+
+        // Decay epsilon
+        if let Err(e) = self.rl_interface.decay_epsilon(py) {
+            println!("Failed to decay epsilon: {:?}", e);
+        }
 
         Ok(())
     }
