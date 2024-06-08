@@ -12,6 +12,7 @@ pub struct MainState {
     pub pos_x: f32,
     pub pos_y: f32,
     pub score: i32,
+    pub previous_score: i32,
     pub spawner: Spawner,
     pub paused: bool,
     pub projectiles: Vec<Projectile>,
@@ -26,6 +27,7 @@ impl MainState {
             pos_x: 350.0,
             pos_y: 250.0,
             score: 0,
+            previous_score: 0,
             spawner,
             paused: false,
             projectiles: Vec::new(),
@@ -61,8 +63,10 @@ impl MainState {
     }
 
     pub fn get_state(&self) -> String {
-        // Return the current state as a string
-        format!("{{\"player_x\": {}, \"player_y\": {}, \"score\": {}}}", self.pos_x, self.pos_y, self.score)
+        // Return the current state as a string, including enemy positions
+        let enemy_positions: Vec<String> = self.spawner.enemies.iter().map(|e| format!("({}, {})", e.x, e.y)).collect();
+        let enemy_positions_str = enemy_positions.join(", ");
+        format!("{{\"player_x\": {}, \"player_y\": {}, \"score\": {}, \"enemies\": [{}]}}", self.pos_x, self.pos_y, self.score, enemy_positions_str)
     }
 
     pub fn perform_action(&mut self, action: &str) {
@@ -75,13 +79,10 @@ impl MainState {
         }
     }
 
-    pub fn get_reward(&self) -> f32 {
-        // Reward is given when the player reaches the goal position
-        if self.spawner.enemies.is_empty() {
-            10.0
-        } else {
-            -1.0
-        }
+    pub fn get_reward(&mut self) -> f32 {
+        let reward = (self.score - self.previous_score) as f32;
+        self.previous_score = self.score;
+        reward
     }
 }
 
