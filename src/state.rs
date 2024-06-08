@@ -1,6 +1,7 @@
 use crate::enemy::{Spawner, Shape};
 use crate::projectile::Projectile;
 use crate::rl_interface::RLInterface;
+use crate::text;
 use cpython::Python;
 use ggez::{Context, GameResult};
 use ggez::event::{EventHandler, KeyCode, KeyMods};
@@ -15,6 +16,7 @@ pub struct MainState {
     pub paused: bool,
     pub projectiles: Vec<Projectile>,
     pub rl_interface: RLInterface,
+    pub running: bool,
 }
 
 impl MainState {
@@ -28,11 +30,12 @@ impl MainState {
             paused: false,
             projectiles: Vec::new(),
             rl_interface,
+            running: true,
         };
         Ok(s)
     }
 
-    fn update_projectiles(&mut self) {
+    pub fn update_projectiles(&mut self) {
         for projectile in &mut self.projectiles {
             projectile.update();
         }
@@ -42,7 +45,7 @@ impl MainState {
         });
     }
 
-    fn check_projectile_collisions(&mut self) {
+    pub fn check_projectile_collisions(&mut self) {
         for projectile in &self.projectiles {
             self.spawner.enemies.retain(|enemy| {
                 let enemy_rect = Rect::new(enemy.x, enemy.y, 50.0, 50.0);
@@ -54,6 +57,30 @@ impl MainState {
                     true // Keep the enemy
                 }
             });
+        }
+    }
+
+    pub fn get_state(&self) -> String {
+        // Return the current state as a string
+        format!("{{\"player_x\": {}, \"player_y\": {}, \"score\": {}}}", self.pos_x, self.pos_y, self.score)
+    }
+
+    pub fn perform_action(&mut self, action: &str) {
+        match action {
+            "up" => self.pos_y = (self.pos_y - 5.0).max(0.0),
+            "down" => self.pos_y = (self.pos_y + 5.0).min(550.0),
+            "left" => self.pos_x = (self.pos_x - 5.0).max(0.0),
+            "right" => self.pos_x = (self.pos_x + 5.0).min(750.0),
+            _ => (),
+        }
+    }
+
+    pub fn get_reward(&self) -> f32 {
+        // Reward is given when the player reaches the goal position
+        if self.spawner.enemies.is_empty() {
+            10.0
+        } else {
+            -1.0
         }
     }
 }
@@ -73,17 +100,20 @@ impl EventHandler for MainState {
 
         let gil = Python::acquire_gil();
         let py = gil.python();
-        let state = format!("{{\"player_x\": {}, \"player_y\": {}, \"score\": {}}}", self.pos_x, self.pos_y, self.score);
-        match self.rl_interface.compute_action(py, &state) {
-            Ok(action) => match action.as_str() {
-                "up" => self.pos_y = (self.pos_y - 5.0).max(0.0),
-                "down" => self.pos_y = (self.pos_y + 5.0).min(550.0),
-                "left" => self.pos_x = (self.pos_x - 5.0).max(0.0),
-                "right" => self.pos_x = (self.pos_x + 5.0).min(750.0),
-                _ => (),
+        let state = self.get_state();
+        let action = match self.rl_interface.compute_action(py, &state) {
+            Ok(action) => action,
+            Err(e) => {
+                println!("Python error: {:?}", e);
+                return Ok(());
             },
-            Err(e) => println!("Python error: {:?}", e),
-        }
+        };
+        self.perform_action(&action);
+
+        // Call the learn method
+        let next_state = self.get_state();
+        let reward = self.get_reward();
+        self.rl_interface.learn(py, &state, &action, reward, &next_state).expect("Failed to learn");
 
         Ok(())
     }
@@ -147,11 +177,11 @@ impl EventHandler for MainState {
         }
 
         // Draw the score at the top right
-        crate::text::draw_text(ctx, &format!("Score: {}", self.score), [700.0, 10.0])?;
+        text::draw_text(ctx, &format!("Score: {}", self.score), [700.0, 10.0])?;
 
         // If the game is paused, draw the "Paused" text
         if self.paused {
-            crate::text::draw_text(ctx, "Paused", [350.0, 300.0])?;
+            text::draw_text(ctx, "Paused", [350.0, 300.0])?;
         }
 
         // Present the drawing
