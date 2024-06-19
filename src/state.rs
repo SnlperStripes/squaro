@@ -7,6 +7,8 @@ use ggez::{Context, GameResult};
 use ggez::event::{EventHandler, KeyCode, KeyMods};
 use ggez::graphics::{self, Color, DrawMode, Rect};
 use ggez::input::mouse::MouseButton;
+use std::time::{Duration, Instant};
+
 
 pub struct MainState {
     pub pos_x: f32,
@@ -18,6 +20,7 @@ pub struct MainState {
     pub projectiles: Vec<Projectile>,
     pub rl_interface: RLInterface,
     pub running: bool,
+    pub last_score_print: Instant
 }
 
 impl MainState {
@@ -33,6 +36,7 @@ impl MainState {
             projectiles: Vec::new(),
             rl_interface,
             running: true,
+            last_score_print: Instant::now(), // Initialize the timer
         };
         Ok(s)
     }
@@ -147,8 +151,11 @@ impl EventHandler for MainState {
             println!("Failed to decay epsilon: {:?}", e);
         }
 
-        // Log the score at every update
-        println!("Current score: {}", self.score);
+        // Log the score periodically
+        if self.last_score_print.elapsed() >= Duration::from_secs(5) {
+            println!("Current score: {}", self.score);
+            self.last_score_print = Instant::now();
+        }
 
         Ok(())
     }
