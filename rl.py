@@ -1,6 +1,7 @@
 import random
 import json
 import os
+import atexit
 
 # Q-Table to store state-action values
 Q_TABLE = {}
@@ -23,6 +24,8 @@ except json.JSONDecodeError:
 
 current_action = None
 action_counter = 0
+save_counter = 0
+SAVE_INTERVAL = 1000  # Save the Q-table every 1000 iterations
 
 ACTIONS = ['up', 'down', 'left', 'right', 'up-left', 'up-right', 'down-left', 'down-right']
 
@@ -53,13 +56,15 @@ def choose_action(state):
     return action
 
 def update_q_table(state, action, reward, next_state):
+    global save_counter
     current_q = get_state_action_value(state, action)
     max_next_q = max([get_state_action_value(next_state, a) for a in ACTIONS])
     new_q = current_q + LEARNING_RATE * (reward + DISCOUNT_FACTOR * max_next_q - current_q)
     set_state_action_value(state, action, new_q)
-    # Save Q-Table
-    with open(q_table_file, 'w') as f:
-        json.dump(Q_TABLE, f)
+    save_counter += 1
+    if save_counter >= SAVE_INTERVAL:
+        save_q_table()
+        save_counter = 0
 
 def compute_action(state):
     return choose_action(state)
@@ -70,3 +75,11 @@ def learn(state, action, reward, next_state):
 def decay_epsilon():
     global EPSILON
     EPSILON = max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
+
+# Save Q-Table periodically
+def save_q_table():
+    with open(q_table_file, 'w') as f:
+        json.dump(Q_TABLE, f)
+
+# Register the save_q_table function to be called on program exit
+atexit.register(save_q_table)
