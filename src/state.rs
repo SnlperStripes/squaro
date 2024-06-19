@@ -63,7 +63,6 @@ impl MainState {
     }
 
     pub fn get_state(&self) -> String {
-        // Return the current state as a string, including relative enemy positions and types
         let enemy_positions: Vec<String> = self.spawner.enemies.iter().map(|e| {
             let enemy_type = match e.shape {
                 Shape::Square => "square",
@@ -72,11 +71,13 @@ impl MainState {
             };
             let relative_x = e.x - self.pos_x;
             let relative_y = e.y - self.pos_y;
-            format!("{{\"x\": {}, \"y\": {}, \"type\": \"{}\"}}", relative_x, relative_y, enemy_type)
+            let distance = ((relative_x * relative_x) + (relative_y * relative_y)).sqrt();
+            format!("{{\"x\": {}, \"y\": {}, \"type\": \"{}\", \"distance\": {}}}", relative_x, relative_y, enemy_type, distance)
         }).collect();
         let enemy_positions_str = enemy_positions.join(", ");
         format!("{{\"player_x\": {}, \"player_y\": {}, \"score\": {}, \"enemies\": [{}]}}", self.pos_x, self.pos_y, self.score, enemy_positions_str)
     }
+    
 
     pub fn perform_action(&mut self, action: &str) {
         match action {
