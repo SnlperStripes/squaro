@@ -5,6 +5,7 @@ import atexit
 from collections import OrderedDict
 import zlib
 import base64
+from concurrent.futures import ThreadPoolExecutor
 
 # Helper functions for compressing and decompressing state representations
 def compress_state(state):
@@ -19,7 +20,7 @@ def decompress_state(compressed_state):
 
 # LRU Cache Implementation
 class LRUCache:
-    def __init__(self, capacity=419430):  # Capacity set based on 200MB limit
+    def __init__(self, capacity=4194304):
         self.capacity = capacity
         self.cache = OrderedDict()
 
@@ -36,7 +37,7 @@ class LRUCache:
         if len(self.cache) > self.capacity:
             self.cache.popitem(last=False)
 
-Q_TABLE = LRUCache(capacity=419430)
+Q_TABLE = LRUCache(capacity=4194304)
 LEARNING_RATE = 0.1
 DISCOUNT_FACTOR = 0.95
 EPSILON = 0.1
@@ -44,7 +45,6 @@ MIN_EPSILON = 0.01
 EPSILON_DECAY = 0.995
 ACTION_PERSISTENCE = 10
 
-# Load Q-Table if it exists, or initialize a new one if it fails
 q_table_file = 'q_table.json'
 try:
     if os.path.exists(q_table_file):
@@ -55,7 +55,7 @@ try:
                 Q_TABLE.put(decompressed_key, value)
 except (json.JSONDecodeError, zlib.error, base64.binascii.Error) as e:
     print(f"Failed to load Q-table: {e}. Initializing new Q-table.")
-    Q_TABLE = LRUCache(capacity=419430)
+    Q_TABLE = LRUCache(capacity=4194304)
 
 current_action = None
 action_counter = 0
@@ -114,14 +114,21 @@ def decay_epsilon():
     global EPSILON
     EPSILON = max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
 
-# Save Q-Table periodically
-def save_q_table():
+# Define the thread pool executor
+executor = ThreadPoolExecutor(max_workers=1)
+
+# Define the function to save the Q-table asynchronously
+def async_save_q_table():
     with open(q_table_file, 'w') as f:
         try:
             compressed_data = {compress_state(k): v for k, v in Q_TABLE.cache.items()}
             json.dump(compressed_data, f)
         except (zlib.error, base64.binascii.Error) as e:
             print(f"Failed to save Q-table: {e}")
+
+# Modify the save_q_table function to use the executor
+def save_q_table():
+    executor.submit(async_save_q_table)
 
 # Register the save_q_table function to be called on program exit
 atexit.register(save_q_table)
