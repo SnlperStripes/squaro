@@ -23,10 +23,13 @@ class LRUCache:
     def __init__(self, capacity=4194304):
         self.capacity = capacity
         self.cache = OrderedDict()
+        self.usage_counts = OrderedDict()
+        self.initial_load = True  # Flag to prevent pruning during initial load
 
     def get(self, key):
         if key in self.cache:
             self.cache.move_to_end(key)
+            self.usage_counts[key] += 1
             return self.cache[key]
         return None
 
@@ -34,8 +37,21 @@ class LRUCache:
         if key in self.cache:
             self.cache.move_to_end(key)
         self.cache[key] = value
+        self.usage_counts[key] = self.usage_counts.get(key, 0) + 1
         if len(self.cache) > self.capacity:
-            self.cache.popitem(last=False)
+            self.prune()
+    
+    def prune(self):
+        if len(self.cache) <= self.capacity or self.initial_load:
+            return
+        sorted_usage = sorted(self.usage_counts.items(), key=lambda item: item[1])
+        num_items_to_prune = len(sorted_usage) // 10  # Remove the least used 10% of items
+        for key, _ in sorted_usage[:num_items_to_prune]:
+            if key in self.cache:
+                del self.cache[key]
+                del self.usage_counts[key]
+            if len(self.cache) <= self.capacity:
+                break
 
 Q_TABLE = LRUCache(capacity=4194304)
 LEARNING_RATE = 0.1
@@ -53,6 +69,7 @@ try:
             for key, value in data.items():
                 decompressed_key = decompress_state(key)
                 Q_TABLE.put(decompressed_key, value)
+        Q_TABLE.initial_load = False  # Disable initial load flag after loading
 except (json.JSONDecodeError, zlib.error, base64.binascii.Error) as e:
     print(f"Failed to load Q-table: {e}. Initializing new Q-table.")
     Q_TABLE = LRUCache(capacity=4194304)
@@ -61,6 +78,8 @@ current_action = None
 action_counter = 0
 save_counter = 0
 SAVE_INTERVAL = 1000
+PRUNE_INTERVAL = 10000
+prune_counter = 0
 
 ACTIONS = ['up', 'down', 'left', 'right', 'up-left', 'up-right', 'down-left', 'down-right']
 
@@ -72,7 +91,7 @@ def get_state_action_value(state, action):
 
 def set_state_action_value(state, action, value):
     state_actions = Q_TABLE.get(state) or {}
-    state_actions[action] = value
+    state_actions[action] = round(value, 4)  # Quantize Q-value to 4 decimal places
     Q_TABLE.put(state, state_actions)
 
 def choose_action(state):
@@ -94,15 +113,19 @@ def choose_action(state):
     return action
 
 def update_q_table(state, action, reward, next_state):
-    global save_counter
+    global save_counter, prune_counter
     current_q = get_state_action_value(state, action)
     max_next_q = max([get_state_action_value(next_state, a) for a in ACTIONS])
     new_q = current_q + LEARNING_RATE * (reward + DISCOUNT_FACTOR * max_next_q - current_q)
     set_state_action_value(state, action, new_q)
     save_counter += 1
+    prune_counter += 1
     if save_counter >= SAVE_INTERVAL:
         save_q_table()
         save_counter = 0
+    if prune_counter >= PRUNE_INTERVAL:
+        Q_TABLE.prune()
+        prune_counter = 0
 
 def compute_action(state):
     return choose_action(state)
