@@ -89,26 +89,10 @@ impl MainState {
             "down" => self.pos_y = (self.pos_y + 5.0).min(550.0),
             "left" => self.pos_x = (self.pos_x - 5.0).max(0.0),
             "right" => self.pos_x = (self.pos_x + 5.0).min(750.0),
-            "up-left" => {
-                self.pos_y = (self.pos_y - 5.0).max(0.0);
-                self.pos_x = (self.pos_x - 5.0).max(0.0);
-            },
-            "up-right" => {
-                self.pos_y = (self.pos_y - 5.0).max(0.0);
-                self.pos_x = (self.pos_x + 5.0).min(750.0);
-            },
-            "down-left" => {
-                self.pos_y = (self.pos_y + 5.0).min(550.0);
-                self.pos_x = (self.pos_x - 5.0).max(0.0);
-            },
-            "down-right" => {
-                self.pos_y = (self.pos_y + 5.0).min(550.0);
-                self.pos_x = (self.pos_x + 5.0).min(750.0);
-            },
             _ => (),
         }
     }
-
+    
     pub fn get_reward(&mut self) -> f32 {
         let reward = (self.score - self.previous_score) as f32;
         self.previous_score = self.score;
