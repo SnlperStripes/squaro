@@ -81,7 +81,7 @@ SAVE_INTERVAL = 1000
 PRUNE_INTERVAL = 10000
 prune_counter = 0
 
-ACTIONS = ['up', 'down', 'left', 'right', 'up-left', 'up-right', 'down-left', 'down-right']
+ACTIONS = ['up', 'down', 'left', 'right']
 
 def get_state_action_value(state, action):
     value = Q_TABLE.get(state)
