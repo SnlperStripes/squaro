@@ -2,8 +2,10 @@
 name = "squaro"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
 
 [dependencies]
 winit = "0.27"
 ggez = "0.7.0"
 rand = "0.8"
+cpython = "0.5.2"

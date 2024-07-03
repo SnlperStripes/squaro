@@ -1,57 +1,47 @@
 use crate::enemy::{Spawner, Shape};
 use crate::projectile::Projectile;
+use crate::rl_interface::RLInterface;
+use crate::text;
+use cpython::Python;
 use ggez::{Context, GameResult};
 use ggez::event::{EventHandler, KeyCode, KeyMods};
 use ggez::graphics::{self, Color, DrawMode, Rect};
 use ggez::input::mouse::MouseButton;
+use std::time::{Duration, Instant};
+
 
 pub struct MainState {
     pub pos_x: f32,
     pub pos_y: f32,
     pub score: i32,
+    pub previous_score: i32,
     pub spawner: Spawner,
     pub paused: bool,
     pub projectiles: Vec<Projectile>,
+    pub rl_interface: RLInterface,
+    pub running: bool,
+    pub last_score_print: Instant
 }
 
 impl MainState {
-    pub fn new() -> GameResult<MainState> {
+    pub fn new(rl_interface: RLInterface) -> GameResult<MainState> {
         let spawner = Spawner::new();
         let s = MainState {
             pos_x: 350.0,
             pos_y: 250.0,
             score: 0,
+            previous_score: 0,
             spawner,
             paused: false,
             projectiles: Vec::new(),
+            rl_interface,
+            running: true,
+            last_score_print: Instant::now(), // Initialize the timer
         };
         Ok(s)
     }
 
-    fn move_towards(&mut self, target_x: f32, target_y: f32) {
-        let dx = target_x - self.pos_x;
-        let dy = target_y - self.pos_y;
-        let distance = (dx * dx + dy * dy).sqrt();
-
-        if distance > 1.0 {
-            self.pos_x += dx / distance;
-            self.pos_y += dy / distance;
-        }
-
-        // Ensure the player stays within the window boundaries
-        if self.pos_x < 0.0 {
-            self.pos_x = 0.0;
-        } else if self.pos_x > 750.0 {
-            self.pos_x = 750.0;
-        }
-        if self.pos_y < 0.0 {
-            self.pos_y = 0.0;
-        } else if self.pos_y > 550.0 {
-            self.pos_y = 550.0;
-        }
-    }
-
-    fn update_projectiles(&mut self) {
+    pub fn update_projectiles(&mut self) {
         for projectile in &mut self.projectiles {
             projectile.update();
         }
@@ -61,7 +51,7 @@ impl MainState {
         });
     }
 
-    fn check_projectile_collisions(&mut self) {
+    pub fn check_projectile_collisions(&mut self) {
         for projectile in &self.projectiles {
             self.spawner.enemies.retain(|enemy| {
                 let enemy_rect = Rect::new(enemy.x, enemy.y, 50.0, 50.0);
@@ -74,6 +64,39 @@ impl MainState {
                 }
             });
         }
+    }
+
+    pub fn get_state(&self) -> String {
+        let enemy_positions: Vec<String> = self.spawner.enemies.iter().map(|e| {
+            let enemy_type = match e.shape {
+                Shape::Square => "square",
+                Shape::Circle => "circle",
+                Shape::Triangle => "triangle",
+            };
+            let relative_x = e.x - self.pos_x;
+            let relative_y = e.y - self.pos_y;
+            let distance = ((relative_x * relative_x) + (relative_y * relative_y)).sqrt();
+            format!("{{\"x\": {}, \"y\": {}, \"type\": \"{}\", \"distance\": {}}}", relative_x, relative_y, enemy_type, distance)
+        }).collect();
+        let enemy_positions_str = enemy_positions.join(", ");
+        format!("{{\"player_x\": {}, \"player_y\": {}, \"score\": {}, \"enemies\": [{}]}}", self.pos_x, self.pos_y, self.score, enemy_positions_str)
+    }
+    
+
+    pub fn perform_action(&mut self, action: &str) {
+        match action {
+            "up" => self.pos_y = (self.pos_y - 5.0).max(0.0),
+            "down" => self.pos_y = (self.pos_y + 5.0).min(550.0),
+            "left" => self.pos_x = (self.pos_x - 5.0).max(0.0),
+            "right" => self.pos_x = (self.pos_x + 5.0).min(750.0),
+            _ => (),
+        }
+    }
+    
+    pub fn get_reward(&mut self) -> f32 {
+        let reward = (self.score - self.previous_score) as f32;
+        self.previous_score = self.score;
+        reward
     }
 }
 
@@ -90,8 +113,32 @@ impl EventHandler for MainState {
         self.spawner.check_collisions(&main_rect, &mut self.score); // Check collisions with enemies
         self.check_projectile_collisions(); // Check collisions with projectiles
 
-        if let Some(enemy) = self.spawner.get_closest_enemy(self.pos_x, self.pos_y) {
-            self.move_towards(enemy.x, enemy.y);
+        let gil = Python::acquire_gil();
+        let py = gil.python();
+        let state = self.get_state();
+        let action = match self.rl_interface.compute_action(py, &state) {
+            Ok(action) => action,
+            Err(e) => {
+                println!("Python error: {:?}", e);
+                return Ok(());
+            },
+        };
+        self.perform_action(&action);
+
+        // Call the learn method
+        let next_state = self.get_state();
+        let reward = self.get_reward();
+        self.rl_interface.learn(py, &state, &action, reward, &next_state).expect("Failed to learn");
+
+        // Decay epsilon
+        if let Err(e) = self.rl_interface.decay_epsilon(py) {
+            println!("Failed to decay epsilon: {:?}", e);
+        }
+
+        // Log the score periodically
+        if self.last_score_print.elapsed() >= Duration::from_secs(5) {
+            println!("Current score: {}", self.score);
+            self.last_score_print = Instant::now();
         }
 
         Ok(())
@@ -156,11 +203,11 @@ impl EventHandler for MainState {
         }
 
         // Draw the score at the top right
-        crate::text::draw_text(ctx, &format!("Score: {}", self.score), [700.0, 10.0])?;
+        text::draw_text(ctx, &format!("Score: {}", self.score), [700.0, 10.0])?;
 
         // If the game is paused, draw the "Paused" text
         if self.paused {
-            crate::text::draw_text(ctx, "Paused", [350.0, 300.0])?;
+            text::draw_text(ctx, "Paused", [350.0, 300.0])?;
         }
 
         // Present the drawing
