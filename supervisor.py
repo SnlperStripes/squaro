@@ -63,8 +63,8 @@ def delete_q_table():
 # Main function to run supervisor
 def main():
     duration_minutes = 5
-    iterations_no_qtable = 15  # 10 iterations without deleting the Q-table
-    iterations_with_qtable = 15  # 5 iterations with Q-table intact
+    iterations_no_qtable = 15  # 15 iterations without deleting the Q-table
+    iterations_with_qtable = 15  # 15 iterations with Q-table intact
     iteration_count = 0  # Initialize the iteration count
 
     # Run iterations without deleting the Q-table (continue learning)
