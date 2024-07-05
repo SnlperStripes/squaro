@@ -2,6 +2,7 @@ import subprocess
 import time
 import os
 import re
+import json
 from datetime import datetime
 
 # Define the paths
@@ -35,11 +36,24 @@ def parse_points_from_output(output):
         return int(matches[-1])  # Return the last matched score
     return 0
 
+# Function to get the size of the Q-table
+def get_q_table_size():
+    if os.path.exists(q_table_path):
+        try:
+            with open(q_table_path, 'r') as file:
+                data = json.load(file)
+                return len(data)
+        except (json.JSONDecodeError, ValueError):
+            # Return 0 if the file is empty or contains invalid JSON
+            return 0
+    return 0
+
 # Function to log the results
-def log_results(duration_minutes, points):
+def log_results(duration_minutes, points, trained, q_table_size, iteration_count):
     with open(log_file, 'a') as file:
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        file.write(f'{timestamp} - {duration_minutes} minutes training: {points} points\n')
+        status = 'with trained data' if trained else 'without trained data'
+        file.write(f'{timestamp} - {duration_minutes} minutes training: {points} points ({status}), Q-table size: {q_table_size}, Q-table iterations: {iteration_count}\n')
 
 # Function to delete Q-table
 def delete_q_table():
@@ -49,20 +63,28 @@ def delete_q_table():
 # Main function to run supervisor
 def main():
     duration_minutes = 5
-    iterations_no_qtable = 10  # 10 iterations without deleting the Q-table
-    iterations_with_qtable = 5  # 5 iterations with Q-table intact
+    iterations_no_qtable = 15  # 15 iterations without deleting the Q-table
+    iterations_with_qtable = 15  # 15 iterations with Q-table intact
+    iteration_count = 0  # Initialize the iteration count
 
-    # Run iterations without deleting the Q-table
-    for i in range(iterations_no_qtable):
-        points = run_rust_program(duration_minutes)
-        log_results(duration_minutes, points)
-        print(f'Iteration {i+1}/{iterations_no_qtable}: {points} points')
-
-    # Run iterations with Q-table intact
+    # Run iterations without deleting the Q-table (continue learning)
     for i in range(iterations_with_qtable):
         points = run_rust_program(duration_minutes)
-        log_results(duration_minutes, points)
-        print(f'Iteration {i+1}/{iterations_with_qtable} (with Q-table intact): {points} points')
+        q_table_size = get_q_table_size()
+        log_results(duration_minutes, points, trained=True, q_table_size=q_table_size, iteration_count=iteration_count)
+        print(f'Iteration {i+1}/{iterations_with_qtable} (with Q-table intact): {points} points, Q-table size: {q_table_size}, Q-table iterations: {iteration_count}')
+        iteration_count += 1
 
+
+    # Run iterations with deleting the Q-table (fresh start)
+    for i in range(iterations_no_qtable):
+        delete_q_table()  # Delete the Q-table to start fresh
+        points = run_rust_program(duration_minutes)
+        q_table_size = get_q_table_size()
+        log_results(duration_minutes, points, trained=False, q_table_size=q_table_size, iteration_count=iteration_count)
+        print(f'Iteration {i+1}/{iterations_no_qtable} (fresh start): {points} points, Q-table size: {q_table_size}, Q-table iterations: {iteration_count}')
+        iteration_count += 1
+
+    
 if __name__ == '__main__':
     main()
